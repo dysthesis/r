@@ -1,6 +1,5 @@
 use quick_xml::Reader;
 use quick_xml::events::Event;
-use rss::Channel;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -12,7 +11,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     let feed = Feed::from(body.as_str());
-    println!("{feed:?}");
+
+    match feed {
+        Feed::Rss(val) => {
+            let channel = rss::Channel::read_from(val.as_bytes())?;
+            println!("{channel:?}");
+        }
+        Feed::Atom(val) => {
+            let channel = atom_syndication::Feed::read_from(val.as_bytes())?;
+            println!("{channel:?}");
+        }
+        Feed::None => todo!(),
+    }
 
     Ok(())
 }
