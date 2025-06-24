@@ -33,6 +33,6 @@ fn main() -> anyhow::Result<()> {
             articles
         })
         .collect();
-    println!("{articles:?}");
+    println!("{}", serde_json::to_string(&articles)?);
     Ok(())
 }
