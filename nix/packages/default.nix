@@ -4,7 +4,15 @@
   lib,
   inputs,
   ...
-}: rec {
+}:
+rec {
   default = r;
-  r = pkgs.callPackage ./r.nix {inherit pkgs inputs lib self;};
+  r = pkgs.callPackage ./r.nix {
+    inherit
+      pkgs
+      inputs
+      lib
+      self
+      ;
+  };
 }
