@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{env, error::Error, fs, path::PathBuf, process};
 
 use crate::{
     article::{Article, FullText, SummaryOnly},
@@ -13,11 +13,16 @@ mod item_ext;
 mod url_ext;
 
 fn main() -> anyhow::Result<()> {
-    let feeds = vec![
-        "https://matklad.github.io/feed.xml",
-        "https://nullprogram.com/feed/",
-        "https://googleprojectzero.blogspot.com/feeds/posts/default",
-    ];
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        // Print an error message to standard error.
+        eprintln!("Usage: {} <path1> <path2>", args[0]);
+        // Exit the program with a non-zero status code to indicate an error.
+        process::exit(1);
+    }
+    let path = PathBuf::from(&args[1]);
+    let feeds_file = fs::read_to_string(path)?;
+    let feeds: Vec<&str> = feeds_file.lines().collect();
     let fetched: Vec<HttpContent> = feeds
         .into_iter()
         .filter_map(|val| url::Url::parse(val).ok()?.try_into().ok())
