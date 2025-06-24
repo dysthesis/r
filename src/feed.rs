@@ -3,6 +3,7 @@ use atom_syndication::Feed;
 use rss::Channel;
 
 use crate::content::HttpContent;
+#[derive(Debug)]
 pub enum FeedParser {
     Rss(Channel),
     Atom(Feed),

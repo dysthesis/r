@@ -118,14 +118,13 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                 let source_url = Url::parse(dbg!(feed.base()).unwrap_or_default())
                     .unwrap_or_else(|_| Url::parse("https://lobste.rs").unwrap());
 
-                let res = feed
-                    .entries()
+                feed.entries()
                     .iter()
                     .map(|entry| {
                         let id = entry.id().to_string();
                         // TODO: Error handling
                         let content = entry.content().expect("an entry to have content");
-                        let url = Url::parse(content.src().unwrap_or_default())
+                        let url = Url::parse(content.base().unwrap_or_default())
                             .unwrap_or_else(|_| Url::parse("https://lobste.rs").unwrap());
                         let title = entry.title().to_string();
                         let author: String = entry
@@ -152,9 +151,7 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                             updated_at,
                         }
                     })
-                    .collect();
-
-                res
+                    .collect()
             }
         }
     }
