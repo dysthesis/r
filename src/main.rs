@@ -10,6 +10,7 @@ mod article;
 mod content;
 mod feed;
 mod item_ext;
+mod url_ext;
 
 fn main() -> anyhow::Result<()> {
     let feeds = vec![
@@ -23,7 +24,7 @@ fn main() -> anyhow::Result<()> {
         .collect();
     let parsed: Vec<FeedParser> = fetched
         .into_iter()
-        .filter_map(|val| dbg!(val.try_into()).ok())
+        .filter_map(|val| val.try_into().ok())
         .collect();
     let articles: Vec<Article<SummaryOnly>> = parsed
         .into_iter()

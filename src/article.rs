@@ -1,10 +1,9 @@
 use std::marker::PhantomData;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{feed::FeedParser, item_ext::Hashable};
+use crate::{feed::FeedParser, item_ext::Hashable, url_ext::HasUrl};
 
 // States for the article
 pub trait ArticleState {}
@@ -26,13 +25,15 @@ where
     id: String,
 
     /// The URL of the source feed this article came from.
-    source_url: Url,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_url: Option<Url>,
 
     /// The title of the source feed.
+    #[serde(skip_serializing_if = "Option::is_none")]
     source_title: Option<String>,
 
     /// The direct URL to the article on the web.
-    url: Url,
+    url: Option<Url>,
 
     /// The title of the article.
     title: String,
@@ -75,8 +76,7 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
             FeedParser::Rss(channel) => {
                 // Get the feed information
                 let source_title = Some(channel.title().to_string());
-                let source_url = Url::parse(channel.link())
-                    .unwrap_or_else(|_| Url::parse("https://lobste.rs").unwrap());
+                let source_url = channel.get_url();
 
                 // TODO: I'm ignoring errors for now just to get this working first. We don't want
                 // to fail the entire process just because of a few parsing errors on a couple of
@@ -89,8 +89,7 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                             .guid()
                             .map(|val| val.value().to_string())
                             .unwrap_or(item.hash());
-                        let url = Url::parse(item.link().unwrap_or_default())
-                            .unwrap_or_else(|_| Url::parse("https://lobste.rs").unwrap());
+                        let url = item.get_url();
                         let title = item.title().unwrap_or_default().to_string();
                         let author = item.author().unwrap_or_default().to_string();
                         let content = item.content().unwrap_or_default().to_string();
@@ -115,8 +114,7 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
             }
             FeedParser::Atom(feed) => {
                 let source_title = Some(feed.title().to_string());
-                let source_url = Url::parse(dbg!(feed.base()).unwrap_or_default())
-                    .unwrap_or_else(|_| Url::parse("https://lobste.rs").unwrap());
+                let source_url = feed.get_url();
 
                 feed.entries()
                     .iter()
@@ -124,8 +122,7 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                         let id = entry.id().to_string();
                         // TODO: Error handling
                         let content = entry.content().expect("an entry to have content");
-                        let url = Url::parse(content.base().unwrap_or_default())
-                            .unwrap_or_else(|_| Url::parse("https://lobste.rs").unwrap());
+                        let url = entry.get_url();
                         let title = entry.title().to_string();
                         let author: String = entry
                             .authors()
