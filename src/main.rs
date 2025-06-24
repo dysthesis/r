@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::{
-    article::{Article, SummaryOnly},
+    article::{Article, FullText, SummaryOnly},
     content::HttpContent,
     feed::FeedParser,
 };
@@ -26,11 +26,14 @@ fn main() -> anyhow::Result<()> {
         .into_iter()
         .filter_map(|val| val.try_into().ok())
         .collect();
-    let articles: Vec<Article<SummaryOnly>> = parsed
+    let articles: Vec<Article<FullText>> = parsed
         .into_iter()
         .flat_map(|feed| {
             let articles: Vec<Article<SummaryOnly>> = feed.into();
             articles
+                .into_iter()
+                .filter_map(|article| article.try_into().ok())
+                .collect::<Vec<Article<FullText>>>()
         })
         .collect();
     println!("{}", serde_json::to_string(&articles)?);

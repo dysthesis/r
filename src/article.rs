@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use readability::extractor;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -64,7 +65,43 @@ impl TryFrom<Article<SummaryOnly>> for Article<FullText> {
     type Error = anyhow::Error;
 
     fn try_from(value: Article<SummaryOnly>) -> Result<Self, Self::Error> {
-        todo!()
+        let Article {
+            id,
+            source_url,
+            source_title,
+            url,
+            title,
+            author,
+            mut content,
+            summary,
+            published_at,
+            updated_at,
+            state: _,
+        } = value;
+        if let Some(url) = url.clone() {
+            let agent = ureq::Agent::new_with_defaults();
+            let html = agent
+                .get(url.to_string())
+                .call()?
+                .body_mut()
+                .read_to_string()?;
+            let article = extractor::extract(&mut html.as_bytes(), &url)?;
+            let parsed = html2md::rewrite_html(article.content.as_str(), false);
+            content = parsed
+        }
+        Ok(Article {
+            id,
+            source_url,
+            source_title,
+            url,
+            title,
+            author,
+            content,
+            summary,
+            published_at,
+            updated_at,
+            state: std::marker::PhantomData::<FullText>,
+        })
     }
 }
 
