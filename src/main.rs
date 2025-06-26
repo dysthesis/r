@@ -1,4 +1,3 @@
-use std::process;
 use std::{env, fs, path::PathBuf};
 
 use url::Url;
