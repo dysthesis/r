@@ -1,4 +1,5 @@
-use std::{env, fs, path::PathBuf, process};
+use std::process;
+use std::{env, fs, path::PathBuf};
 
 use url::Url;
 
@@ -7,6 +8,7 @@ use crate::{
     content::HttpContent,
     feed::FeedParser,
 };
+use anyhow::anyhow;
 
 mod article;
 mod content;
@@ -14,17 +16,21 @@ mod feed;
 mod item_ext;
 mod url_ext;
 
-const LIMIT: usize = 32;
+const DEFAULT_MAX_CONCURRENT_FETCH: usize = 32;
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        // Print an error message to standard error.
-        eprintln!("Usage: {} <path1> <path2>", args[0]);
-        // Exit the program with a non-zero status code to indicate an error.
-        process::exit(1);
-    }
-    let path = PathBuf::from(&args[1]);
+
+    let path = PathBuf::from(args.get(1).ok_or_else(|| {
+        anyhow!(
+            "Missing feeds file path!\n\nUsage: {} <FEEDS PATH> <MAX CONCURRENT FETCH>",
+            args[0]
+        )
+    })?);
+    let limit: usize = args.get(2).map_or(DEFAULT_MAX_CONCURRENT_FETCH, |v| {
+        v.parse::<usize>()
+            .expect("Cannot parse MAX CONCURRENT FETCH as usize")
+    });
     let feeds_file = fs::read_to_string(path)?;
     let feeds: Vec<Url> = feeds_file
         .lines()
@@ -33,7 +39,7 @@ fn main() -> anyhow::Result<()> {
 
     let client = surf::client();
     let fetched: Vec<HttpContent> =
-        smol::block_on(async { HttpContent::fetch(LIMIT, feeds, &client).await })
+        smol::block_on(async { HttpContent::fetch(limit, feeds, &client).await })
             .into_iter()
             .filter_map(|val| val.ok())
             .collect();
@@ -46,7 +52,7 @@ fn main() -> anyhow::Result<()> {
         .flat_map(|feed| {
             let articles: Vec<Article<SummaryOnly>> = feed.into();
             smol::block_on(async {
-                Article::<SummaryOnly>::upgrade(articles, &client, LIMIT).await
+                Article::<SummaryOnly>::upgrade(articles, &client, limit).await
             })
         })
         .filter_map(|val| val.ok())
