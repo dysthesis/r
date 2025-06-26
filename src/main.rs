@@ -1,4 +1,6 @@
-use std::{env, error::Error, fs, path::PathBuf, process};
+use std::{env, fs, path::PathBuf, process};
+
+use url::Url;
 
 use crate::{
     article::{Article, FullText, SummaryOnly},
@@ -12,6 +14,8 @@ mod feed;
 mod item_ext;
 mod url_ext;
 
+const LIMIT: usize = 32;
+
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -22,11 +26,17 @@ fn main() -> anyhow::Result<()> {
     }
     let path = PathBuf::from(&args[1]);
     let feeds_file = fs::read_to_string(path)?;
-    let feeds: Vec<&str> = feeds_file.lines().collect();
-    let fetched: Vec<HttpContent> = feeds
-        .into_iter()
-        .filter_map(|val| url::Url::parse(val).ok()?.try_into().ok())
+    let feeds: Vec<Url> = feeds_file
+        .lines()
+        .filter_map(|url| Url::parse(url).ok())
         .collect();
+
+    let client = surf::client();
+    let fetched: Vec<HttpContent> =
+        smol::block_on(async { HttpContent::fetch(LIMIT, feeds, &client).await })
+            .into_iter()
+            .filter_map(|val| val.ok())
+            .collect();
     let parsed: Vec<FeedParser> = fetched
         .into_iter()
         .filter_map(|val| val.try_into().ok())
@@ -35,11 +45,11 @@ fn main() -> anyhow::Result<()> {
         .into_iter()
         .flat_map(|feed| {
             let articles: Vec<Article<SummaryOnly>> = feed.into();
-            articles
-                .into_iter()
-                .filter_map(|article| article.try_into().ok())
-                .collect::<Vec<Article<FullText>>>()
+            smol::block_on(async {
+                Article::<SummaryOnly>::upgrade(articles, &client, LIMIT).await
+            })
         })
+        .filter_map(|val| val.ok())
         .collect();
     println!("{}", serde_json::to_string(&articles)?);
     Ok(())

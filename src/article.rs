@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
+use std::{collections::HashMap, marker::PhantomData};
 
 use readability::extractor;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{feed::FeedParser, item_ext::Hashable, url_ext::HasUrl};
+use crate::{content::HttpContent, feed::FeedParser, item_ext::Hashable, url_ext::HasUrl};
 
 // States for the article
 pub trait ArticleState {}
@@ -60,12 +60,17 @@ where
     state: PhantomData<State>,
 }
 
-// Fetch the full text
-impl TryFrom<Article<SummaryOnly>> for Article<FullText> {
-    type Error = anyhow::Error;
+impl Article<SummaryOnly> {
+    /// Return the URL if present.
+    pub fn borrow_url(&self) -> Option<&Url> {
+        self.url.as_ref()
+    }
 
-    fn try_from(value: Article<SummaryOnly>) -> Result<Self, Self::Error> {
+    /// Consume `self` and build `Article<FullText>` from the supplied HTML *(already downloaded)*.
+    fn with_full_text(self, html: HttpContent) -> anyhow::Result<Article<FullText>> {
+        let html = html.to_string();
         let Article {
+            // destructure
             id,
             source_url,
             source_title,
@@ -77,17 +82,11 @@ impl TryFrom<Article<SummaryOnly>> for Article<FullText> {
             published_at,
             updated_at,
             state: _,
-        } = value;
-        if let Some(url) = url.clone() {
-            let agent = ureq::Agent::new_with_defaults();
-            let html = agent
-                .get(url.to_string())
-                .call()?
-                .body_mut()
-                .read_to_string()?;
-            let article = extractor::extract(&mut html.as_bytes(), &url)?;
-            let parsed = html2md::rewrite_html(article.content.as_str(), false);
-            content = parsed
+        } = self;
+
+        if let Some(page) = url.clone() {
+            let readable = extractor::extract(&mut html.as_bytes(), &page)?;
+            content = html2md::rewrite_html(readable.content.as_str(), false);
         }
         Ok(Article {
             id,
@@ -100,8 +99,40 @@ impl TryFrom<Article<SummaryOnly>> for Article<FullText> {
             summary,
             published_at,
             updated_at,
-            state: std::marker::PhantomData::<FullText>,
+            state: PhantomData::<FullText>,
         })
+    }
+}
+
+impl<T> Article<T>
+where
+    T: ArticleState,
+{
+    pub async fn upgrade(
+        articles: Vec<Article<SummaryOnly>>,
+        client: &surf::Client,
+        limit: usize,
+    ) -> Vec<anyhow::Result<Article<FullText>>> {
+        let mut url_map = HashMap::new();
+        let mut urls = Vec::new();
+        articles.iter().enumerate().for_each(|(idx, article)| {
+            if let Some(url) = article.borrow_url() {
+                url_map.insert(idx, url.clone());
+                urls.push(url.clone());
+            }
+        });
+        let mut pages = HttpContent::fetch(limit, urls, client).await;
+        articles
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, article)| {
+                let _url = url_map.get(&idx)?;
+                pages
+                    .remove(0)
+                    .map(|content| article.with_full_text(content))
+                    .ok()
+            })
+            .collect()
     }
 }
 

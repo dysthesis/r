@@ -2,10 +2,13 @@
 anyhow = "1.0.98"
 atom_syndication = "0.12.7"
 fast_html2md = {version = "0.0.48", default-features = false, features = ["rewriter"]}
+futures-lite = "2.6.0"
 readability = {version = "0.3.0", default-features = false}
 rss = "2.0.12"
 serde = {version = "1.0.219", features = ["serde_derive"]}
 serde_json = "1.0.140"
+smol = "2.0.2"
+surf = "2.3.2"
 ureq = {version = "3.0.12", features = ["charset"]}
 url = { version = "2.5.4", default-features = false, features = ["std", "serde"] }
 
