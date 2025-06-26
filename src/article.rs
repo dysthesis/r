@@ -6,6 +6,20 @@ use url::Url;
 
 use crate::{content::HttpContent, feed::FeedParser, item_ext::Hashable, url_ext::HasUrl};
 
+const HTMD_OPTIONS: htmd::options::Options = htmd::options::Options {
+    heading_style: htmd::options::HeadingStyle::Atx,
+    hr_style: htmd::options::HrStyle::Asterisks,
+    br_style: htmd::options::BrStyle::TwoSpaces,
+    link_style: htmd::options::LinkStyle::Inlined,
+    link_reference_style: htmd::options::LinkReferenceStyle::Full,
+    code_block_style: htmd::options::CodeBlockStyle::Fenced,
+    code_block_fence: htmd::options::CodeBlockFence::Backticks,
+    bullet_list_marker: htmd::options::BulletListMarker::Asterisk,
+    ul_bullet_spacing: 3,
+    ol_number_spacing: 2,
+    preformatted_code: true,
+};
+
 // States for the article
 pub trait ArticleState {}
 
@@ -86,7 +100,12 @@ impl Article<SummaryOnly> {
 
         if let Some(page) = url.clone() {
             let readable = extractor::extract(&mut html.as_bytes(), &page)?;
-            content = html2md::parse_html(readable.content.as_str());
+            content = htmd::HtmlToMarkdown::builder()
+                .skip_tags(vec!["script", "style"])
+                .options(HTMD_OPTIONS)
+                .build()
+                .convert(readable.content.as_str())
+                .unwrap_or_default();
         }
         Ok(Article {
             id,
@@ -161,7 +180,12 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                         let title = item.title().unwrap_or_default().to_string();
                         let author = item.author().unwrap_or_default().to_string();
                         let content = item.content().unwrap_or_default().to_string();
-                        let content = html2md::parse_html(content.as_str());
+                        let content = htmd::HtmlToMarkdown::builder()
+                            .skip_tags(vec!["script", "style"])
+                            .options(HTMD_OPTIONS)
+                            .build()
+                            .convert(content.as_str())
+                            .unwrap_or_default();
                         let summary = item.description().map(|x| x.to_string());
                         let published_at = item.pub_date().map(|val| val.to_string());
                         let updated_at = None;
