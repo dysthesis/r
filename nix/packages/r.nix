@@ -1,7 +1,9 @@
 {
+  pkg-config,
   rustPlatform,
   cargo,
   rustc,
+  openssl,
   ...
 }:
 rustPlatform.buildRustPackage rec {
@@ -10,7 +12,9 @@ rustPlatform.buildRustPackage rec {
   nativeBuildInputs = [
     cargo
     rustc
+    pkg-config
   ];
+  buildInputs = [openssl];
   src = ../../.;
   cargoLock.lockFile = "${src}/Cargo.lock";
 }

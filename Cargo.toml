@@ -15,3 +15,11 @@ url = { version = "2.5.4", default-features = false, features = ["std", "serde"]
 name = "r"
 version = "0.1.0"
 edition = "2024"
+
+
+[profile.release]
+strip = "debuginfo"
+lto = true
+opt-level = "z"
+codegen-units = 1
+panic = "abort"
