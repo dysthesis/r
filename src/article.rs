@@ -6,20 +6,6 @@ use url::Url;
 
 use crate::{content::HttpContent, feed::FeedParser, item_ext::Hashable, url_ext::HasUrl};
 
-const HTMD_OPTIONS: htmd::options::Options = htmd::options::Options {
-    heading_style: htmd::options::HeadingStyle::Atx,
-    hr_style: htmd::options::HrStyle::Asterisks,
-    br_style: htmd::options::BrStyle::TwoSpaces,
-    link_style: htmd::options::LinkStyle::Inlined,
-    link_reference_style: htmd::options::LinkReferenceStyle::Full,
-    code_block_style: htmd::options::CodeBlockStyle::Indented,
-    code_block_fence: htmd::options::CodeBlockFence::Backticks,
-    bullet_list_marker: htmd::options::BulletListMarker::Asterisk,
-    ul_bullet_spacing: 3,
-    ol_number_spacing: 2,
-    preformatted_code: false,
-};
-
 // States for the article
 pub trait ArticleState {}
 
@@ -102,7 +88,6 @@ impl Article<SummaryOnly> {
             let readable = extractor::extract(&mut html.as_bytes(), &page)?;
             content = htmd::HtmlToMarkdown::builder()
                 .skip_tags(vec!["script", "style"])
-                .options(HTMD_OPTIONS)
                 .build()
                 .convert(readable.content.as_str())
                 .unwrap_or_default();
@@ -182,7 +167,6 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                         let content = item.content().unwrap_or_default().to_string();
                         let content = htmd::HtmlToMarkdown::builder()
                             .skip_tags(vec!["script", "style"])
-                            .options(HTMD_OPTIONS)
                             .build()
                             .convert(content.as_str())
                             .unwrap_or_default();
