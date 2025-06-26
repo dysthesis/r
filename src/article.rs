@@ -190,7 +190,9 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                     .map(|entry| {
                         let id = entry.id().to_string();
                         // TODO: Error handling
-                        let content = entry.content().expect("an entry to have content");
+                        let content = entry.content().map_or(String::default(), |val| {
+                            val.value().map_or(String::default(), |val| val.to_string())
+                        });
                         let url = entry.get_url();
                         let title = entry.title().to_string();
                         let author: String = entry
@@ -199,7 +201,6 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                             .map(|author| author.name().to_string())
                             .collect();
 
-                        let content = content.value().unwrap_or_default().to_string();
                         let summary = entry.summary().map(|val| val.to_string());
                         let published_at = entry.published().map(|val| val.to_string());
                         let updated_at = Some(entry.updated().to_string());
