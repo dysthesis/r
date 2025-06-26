@@ -1,8 +1,8 @@
 [dependencies]
 anyhow = "1.0.98"
 atom_syndication = "0.12.7"
-fast_html2md = {version = "0.0.48", default-features = false, features = ["rewriter"]}
 futures-lite = "2.6.0"
+html2md = "0.2.15"
 readability = {version = "0.3.0", default-features = false}
 rss = "2.0.12"
 serde = {version = "1.0.219", features = ["serde_derive"]}
@@ -22,4 +22,3 @@ strip = "debuginfo"
 lto = true
 opt-level = "z"
 codegen-units = 1
-panic = "abort"

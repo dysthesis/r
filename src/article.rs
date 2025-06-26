@@ -86,7 +86,7 @@ impl Article<SummaryOnly> {
 
         if let Some(page) = url.clone() {
             let readable = extractor::extract(&mut html.as_bytes(), &page)?;
-            content = html2md::rewrite_html(readable.content.as_str(), false);
+            content = html2md::parse_html(readable.content.as_str());
         }
         Ok(Article {
             id,
@@ -161,6 +161,7 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                         let title = item.title().unwrap_or_default().to_string();
                         let author = item.author().unwrap_or_default().to_string();
                         let content = item.content().unwrap_or_default().to_string();
+                        let content = html2md::parse_html(content.as_str());
                         let summary = item.description().map(|x| x.to_string());
                         let published_at = item.pub_date().map(|val| val.to_string());
                         let updated_at = None;
