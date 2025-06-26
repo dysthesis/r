@@ -12,12 +12,12 @@ const HTMD_OPTIONS: htmd::options::Options = htmd::options::Options {
     br_style: htmd::options::BrStyle::TwoSpaces,
     link_style: htmd::options::LinkStyle::Inlined,
     link_reference_style: htmd::options::LinkReferenceStyle::Full,
-    code_block_style: htmd::options::CodeBlockStyle::Fenced,
+    code_block_style: htmd::options::CodeBlockStyle::Indented,
     code_block_fence: htmd::options::CodeBlockFence::Backticks,
     bullet_list_marker: htmd::options::BulletListMarker::Asterisk,
     ul_bullet_spacing: 3,
     ol_number_spacing: 2,
-    preformatted_code: true,
+    preformatted_code: false,
 };
 
 // States for the article
