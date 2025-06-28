@@ -49,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     let articles: Vec<Article<FullText>> = parsed
         .into_iter()
         .flat_map(|feed| {
-            let articles: Vec<Article<SummaryOnly>> = feed.into();
+            let articles: Vec<Article<SummaryOnly>> = feed.try_into().unwrap();
             smol::block_on(async {
                 Article::<SummaryOnly>::upgrade(articles, &client, limit).await
             })

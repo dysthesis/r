@@ -1,6 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData};
 
-use readability::extractor;
+use dom_smoothie::Readability;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -85,12 +85,16 @@ impl Article<SummaryOnly> {
         } = self;
 
         if let Some(page) = url.clone() {
-            let readable = extractor::extract(&mut html.as_bytes(), &page)?;
-            content = htmd::HtmlToMarkdown::builder()
-                .skip_tags(vec!["script", "style"])
-                .build()
-                .convert(readable.content.as_str())
-                .unwrap_or_default();
+            let readable = Readability::new(
+                html,
+                Some(page.as_str()),
+                Some(dom_smoothie::Config {
+                    text_mode: dom_smoothie::TextMode::Markdown,
+                    ..Default::default()
+                }),
+            )?
+            .parse()?;
+            content = readable.text_content.to_string();
         }
         Ok(Article {
             id,
@@ -140,8 +144,10 @@ where
     }
 }
 
-impl From<FeedParser> for Vec<Article<SummaryOnly>> {
-    fn from(value: FeedParser) -> Self {
+impl TryFrom<FeedParser> for Vec<Article<SummaryOnly>> {
+    type Error = anyhow::Error;
+
+    fn try_from(value: FeedParser) -> Result<Self, Self::Error> {
         // We haven't fetched the full text content yet
         let state = PhantomData::<SummaryOnly>;
         match value {
@@ -153,80 +159,87 @@ impl From<FeedParser> for Vec<Article<SummaryOnly>> {
                 // TODO: I'm ignoring errors for now just to get this working first. We don't want
                 // to fail the entire process just because of a few parsing errors on a couple of
                 // articles, but we also don't want to ignore the errors, so we should log them!
-                channel
-                    .items()
-                    .iter()
-                    .map(|item| {
-                        let id = item
-                            .guid()
-                            .map(|val| val.value().to_string())
-                            .unwrap_or(item.hash());
-                        let url = item.get_url();
-                        let title = item.title().unwrap_or_default().to_string();
-                        let author = item.author().unwrap_or_default().to_string();
-                        let content = item.content().unwrap_or_default().to_string();
-                        let content = htmd::HtmlToMarkdown::builder()
-                            .skip_tags(vec!["script", "style"])
-                            .build()
-                            .convert(content.as_str())
-                            .unwrap_or_default();
-                        let summary = item.description().map(|x| x.to_string());
-                        let published_at = item.pub_date().map(|val| val.to_string());
-                        let updated_at = None;
-                        Article {
-                            state,
-                            source_url: source_url.clone(),
-                            source_title: source_title.clone(),
-                            id,
-                            url,
-                            title,
-                            author,
-                            content,
-                            summary,
-                            published_at,
-                            updated_at,
-                        }
-                    })
-                    .collect()
+                let mut results = Vec::with_capacity(channel.items().len());
+                for item in channel.items() {
+                    let id = item
+                        .guid()
+                        .map(|val| val.value().to_string())
+                        .unwrap_or(item.hash());
+                    let url = item.get_url();
+                    let title = item.title().unwrap_or_default().to_string();
+                    let author = item.author().unwrap_or_default().to_string();
+                    let content = item.content().unwrap_or_default().to_string();
+                    let content = Readability::new(
+                        content,
+                        None,
+                        Some(dom_smoothie::Config {
+                            text_mode: dom_smoothie::TextMode::Markdown,
+                            ..Default::default()
+                        }),
+                    )?
+                    .parse()?
+                    .text_content
+                    .to_string();
+                    let summary = item.description().map(|x| x.to_string());
+                    let published_at = item.pub_date().map(|val| val.to_string());
+                    let updated_at = None;
+                    let res = Article {
+                        state,
+                        source_url: source_url.clone(),
+                        source_title: source_title.clone(),
+                        id,
+                        url,
+                        title,
+                        author,
+                        content,
+                        summary,
+                        published_at,
+                        updated_at,
+                    };
+
+                    results.push(res);
+                }
+                Ok(results)
             }
             FeedParser::Atom(feed) => {
                 let source_title = Some(feed.title().to_string());
                 let source_url = feed.get_url();
 
-                feed.entries()
-                    .iter()
-                    .map(|entry| {
-                        let id = entry.id().to_string();
-                        // TODO: Error handling
-                        let content = entry.content().map_or(String::default(), |val| {
-                            val.value().map_or(String::default(), |val| val.to_string())
-                        });
-                        let url = entry.get_url();
-                        let title = entry.title().to_string();
-                        let author: String = entry
-                            .authors()
-                            .iter()
-                            .map(|author| author.name().to_string())
-                            .collect();
+                let mut results = Vec::with_capacity(feed.entries().len());
 
-                        let summary = entry.summary().map(|val| val.to_string());
-                        let published_at = entry.published().map(|val| val.to_string());
-                        let updated_at = Some(entry.updated().to_string());
-                        Article {
-                            state,
-                            source_url: source_url.clone(),
-                            source_title: source_title.clone(),
-                            id,
-                            url,
-                            title,
-                            author,
-                            content,
-                            summary,
-                            published_at,
-                            updated_at,
-                        }
-                    })
-                    .collect()
+                for entry in feed.entries() {
+                    let id = entry.id().to_string();
+                    // TODO: Error handling
+                    let content = entry.content().map_or(String::default(), |val| {
+                        val.value().map_or(String::default(), |val| val.to_string())
+                    });
+                    let url = entry.get_url();
+                    let title = entry.title().to_string();
+                    let author: String = entry
+                        .authors()
+                        .iter()
+                        .map(|author| author.name().to_string())
+                        .collect();
+
+                    let summary = entry.summary().map(|val| val.to_string());
+                    let published_at = entry.published().map(|val| val.to_string());
+                    let updated_at = Some(entry.updated().to_string());
+                    let res = Article {
+                        state,
+                        source_url: source_url.clone(),
+                        source_title: source_title.clone(),
+                        id,
+                        url,
+                        title,
+                        author,
+                        content,
+                        summary,
+                        published_at,
+                        updated_at,
+                    };
+                    results.push(res);
+                }
+                Ok(results)
             }
         }
     }
