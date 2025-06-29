@@ -56,56 +56,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dom_query"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3302a84463a3a70a1fd1b3f6f40f75fce44f915c0c8d034d6338adfffca42dfc"
-dependencies = [
- "bit-set",
- "cssparser",
- "foldhash",
- "html5ever",
- "nom",
- "precomputed-hash",
- "selectors",
- "tendril",
-]
-
-[[package]]
-name = "dom_smoothie"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5be2341bbbde9b5e81890e79c6b5f78052a9c72e7990d6089368422f31baa1c"
-dependencies = [
- "dom_query",
- "flagset",
- "foldhash",
- "gjson",
- "html-escape",
- "once_cell",
- "phf",
- "tendril",
- "thiserror 2.0.12",
- "unicode-segmentation",
- "url",
-]
-
-[[package]]
-name = "dtoa"
-version = "1.0.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6add3b8cff394282be81f3fc1a0605db594ed69890078ca6e2cab1c408bcf04"
-
-[[package]]
-name = "dtoa-short"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd1511a7b6a56299bd043a9c167a6d2bfb37bf84a6dfceaba651168adfb43c87"
-dependencies = [
- "dtoa",
-]
-
-[[package]]
 name = "encoding_rs"
 version = "0.8.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -400,16 +350,7 @@ version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
 dependencies = [
- "thiserror-impl 1.0.69",
-]
-
-[[package]]
-name = "thiserror"
-version = "2.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
-dependencies = [
- "thiserror-impl 2.0.12",
+ "thiserror-impl",
 ]
 
 [[package]]
