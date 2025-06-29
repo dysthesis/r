@@ -93,7 +93,7 @@ where
             reason: e,
         })?;
         let title = self.get_title();
-        let author = self.get_title();
+        let author = self.get_author();
         let content = self.get_content();
         let summary = self.get_summary();
         let published_at = self
