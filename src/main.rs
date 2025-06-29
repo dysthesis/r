@@ -1,10 +1,7 @@
 #![feature(box_into_inner)]
-use std::{env, fs};
+use std::io::{self, Read};
 
-use crate::{
-    article::Articles,
-    feed_parser::{FeedParser, FeedParserError},
-};
+use crate::feed_parser::{FeedParser, FeedParserError};
 
 mod article;
 mod atom;
@@ -12,13 +9,10 @@ mod feed_parser;
 mod rss;
 
 fn main() -> Result<(), String> {
-    let args: Vec<String> = env::args().collect();
-    // We expect the only argument to be the path to the feed file.
-    let path = args
-        .get(1)
-        .expect("Could not find the path to the feed file in the command-line arguments!");
-    let contents =
-        fs::read_to_string(path).map_err(|e| format!("Failed to open the file {path}: {e}"))?;
+    let mut contents = String::new();
+    let _ = io::stdin()
+        .read_to_string(&mut contents)
+        .map_err(|e| e.to_string())?;
 
     let feed: FeedParser = contents
         .as_str()
@@ -28,6 +22,6 @@ fn main() -> Result<(), String> {
     let articles = feed.parse().map_err(|e| e.to_string())?;
     let json = serde_json::to_string(&articles).map_err(|e| e.to_string())?;
 
-    println!("{}", json);
+    println!("{json}");
     Ok(())
 }
