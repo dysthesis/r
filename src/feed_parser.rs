@@ -1,21 +1,27 @@
-use anyhow::anyhow;
+use thiserror::Error;
 
 #[derive(Debug)]
 pub enum FeedParser {
-    Rss(rss::Channel),
-    Atom(atom_syndication::Feed),
+    Rss(Box<rss::Channel>),
+    Atom(Box<atom_syndication::Feed>),
 }
 
-impl TryFrom<&str> for FeedParser {
-    type Error = anyhow::Error;
+#[derive(Debug, Error)]
+pub enum FeedParserError<'a> {
+    #[error("This is not a valid RSS or Atom feed")]
+    InvalidFeed { content: &'a str },
+}
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+impl<'a> TryFrom<&'a str> for FeedParser {
+    type Error = FeedParserError<'a>;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
         if let Ok(channel) = rss::Channel::read_from(value.as_bytes()) {
-            Ok(FeedParser::Rss(channel))
+            Ok(FeedParser::Rss(Box::new(channel)))
         } else if let Ok(feed) = atom_syndication::Feed::read_from(value.as_bytes()) {
-            Ok(FeedParser::Atom(feed))
+            Ok(FeedParser::Atom(Box::new(feed)))
         } else {
-            Err(anyhow!("Cannot parse content as RSS or Atom!"))
+            Err(FeedParserError::InvalidFeed { content: value })
         }
     }
 }
