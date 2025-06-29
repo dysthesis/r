@@ -1,8 +1,7 @@
 # r - a command-line RSS feed fetcher
 
-Given a list of newline-separated RSS or Atom feed URLs, `r` fetches the full-text content for them and returns the articles as a JSON array, making it easily scriptable with `jq`.
+Given an arbitrary RSS or Atom feed, `r` parses it into an array of JSON objects representing the articles.
 
-## To do
+## Todo
 
-- [ ] Fix contents getting mismatched with the wrong title, probably because of some weird async issue.
-- [ ] Consider extracting the web page to Markdown fetching logic to a separate binary.
+- [ ] Make the program zero-copy; I don't see why that wouldn't be possible.

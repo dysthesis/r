@@ -1,61 +1,33 @@
-use std::{env, fs, path::PathBuf};
-
-use url::Url;
+#![feature(box_into_inner)]
+use std::{env, fs};
 
 use crate::{
-    article::{Article, FullText, SummaryOnly},
-    content::HttpContent,
-    feed::FeedParser,
+    article::Articles,
+    feed_parser::{FeedParser, FeedParserError},
 };
-use anyhow::anyhow;
 
 mod article;
-mod content;
-mod feed;
-mod item_ext;
-mod url_ext;
+mod atom;
+mod feed_parser;
+mod rss;
 
-const DEFAULT_MAX_CONCURRENT_FETCH: usize = 32;
-
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
+    // We expect the only argument to be the path to the feed file.
+    let path = args
+        .get(1)
+        .expect("Could not find the path to the feed file in the command-line arguments!");
+    let contents =
+        fs::read_to_string(path).map_err(|e| format!("Failed to open the file {path}: {e}"))?;
 
-    let path = PathBuf::from(args.get(1).ok_or_else(|| {
-        anyhow!(
-            "Missing feeds file path!\n\nUsage: {} <FEEDS PATH> <MAX CONCURRENT FETCH>",
-            args[0]
-        )
-    })?);
-    let limit: usize = args.get(2).map_or(DEFAULT_MAX_CONCURRENT_FETCH, |v| {
-        v.parse::<usize>()
-            .expect("Cannot parse MAX CONCURRENT FETCH as usize")
-    });
-    let feeds_file = fs::read_to_string(path)?;
-    let feeds: Vec<Url> = feeds_file
-        .lines()
-        .filter_map(|url| Url::parse(url).ok())
-        .collect();
+    let feed: FeedParser = contents
+        .as_str()
+        .try_into()
+        .map_err(|val: FeedParserError| val.to_string())?;
 
-    let client = surf::client();
-    let fetched: Vec<HttpContent> =
-        smol::block_on(async { HttpContent::fetch(limit, feeds, &client).await })
-            .into_iter()
-            .filter_map(|val| val.ok())
-            .collect();
-    let parsed: Vec<FeedParser> = fetched
-        .into_iter()
-        .filter_map(|val| val.try_into().ok())
-        .collect();
-    let articles: Vec<Article<FullText>> = parsed
-        .into_iter()
-        .flat_map(|feed| {
-            let articles: Vec<Article<SummaryOnly>> = feed.try_into().unwrap();
-            smol::block_on(async {
-                Article::<SummaryOnly>::upgrade(articles, &client, limit).await
-            })
-        })
-        .filter_map(|val| val.ok())
-        .collect();
-    println!("{}", serde_json::to_string(&articles)?);
+    let articles = feed.parse().map_err(|e| e.to_string())?;
+    let json = serde_json::to_string(&articles).map_err(|e| e.to_string())?;
+
+    println!("{}", json);
     Ok(())
 }

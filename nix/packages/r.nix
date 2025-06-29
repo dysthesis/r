@@ -15,6 +15,10 @@ rustPlatform.buildRustPackage rec {
     pkg-config
   ];
   buildInputs = [openssl];
+  RUSTFLAGS = [
+    "-Zlocation-detail=none"
+    "-Zfmt-debug=none"
+  ];
   src = ../../.;
   cargoLock.lockFile = "${src}/Cargo.lock";
 }

@@ -1,37 +1,53 @@
-use std::{collections::HashMap, marker::PhantomData};
-
-use dom_smoothie::Readability;
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use serde::{Serialize, ser::SerializeSeq};
+use thiserror::Error;
 use url::Url;
 
-use crate::{content::HttpContent, feed::FeedParser, item_ext::Hashable, url_ext::HasUrl};
+pub type Time = DateTime<Utc>;
 
-// States for the article
-pub trait ArticleState {}
+pub trait HasId {
+    fn get_id(&self) -> String;
+}
 
-#[derive(Debug)]
-pub struct SummaryOnly {}
-impl ArticleState for SummaryOnly {}
+pub trait HasUrl {
+    fn get_url(&self) -> Result<Option<Url>, url::ParseError>;
+}
 
-#[derive(Debug)]
-pub struct FullText {}
-impl ArticleState for FullText {}
+pub trait HasItems {
+    type Item: ToArticle;
+    fn get_items(&self) -> Vec<Self::Item>;
+}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-/// A single article
-pub struct Article<State>
-where
-    State: ArticleState,
-{
+pub trait HasTitle {
+    fn get_title(&self) -> String;
+}
+
+pub trait HasContent {
+    fn get_content(&self) -> Option<String>;
+}
+
+pub trait HasAuthor {
+    fn get_author(&self) -> String;
+}
+
+pub trait HasSummary {
+    fn get_summary(&self) -> Option<String>;
+}
+
+pub trait HasPublishedTime {
+    fn get_published_time(&self) -> Result<Option<Time>, chrono::ParseError>;
+}
+pub trait HasUpdatedTime {
+    fn get_updated_time(&self) -> Result<Option<Time>, chrono::ParseError>;
+}
+
+pub trait ToArticle {
+    fn to_article(&self) -> Result<Article, ArticleError>;
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Article {
     id: String,
-
-    /// The URL of the source feed this article came from.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    source_url: Option<Url>,
-
-    /// The title of the source feed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    source_title: Option<String>,
 
     /// The direct URL to the article on the web.
     url: Option<Url>,
@@ -43,7 +59,8 @@ where
     author: String,
 
     /// The HTML content of the article.
-    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
 
     /// A short summary or description of the article.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,55 +68,42 @@ where
 
     /// The date and time the article was originally published.
     #[serde(skip_serializing_if = "Option::is_none")]
-    published_at: Option<String>,
+    published_at: Option<Time>,
 
     /// The date and time the article was last updated.
     #[serde(skip_serializing_if = "Option::is_none")]
-    updated_at: Option<String>,
-
-    state: PhantomData<State>,
+    updated_at: Option<Time>,
 }
 
-impl Article<SummaryOnly> {
-    /// Return the URL if present.
-    pub fn borrow_url(&self) -> Option<&Url> {
-        self.url.as_ref()
-    }
-
-    /// Consume `self` and build `Article<FullText>` from the supplied HTML *(already downloaded)*.
-    fn with_full_text(self, html: HttpContent) -> anyhow::Result<Article<FullText>> {
-        let html = html.to_string();
-        let Article {
-            // destructure
-            id,
-            source_url,
-            source_title,
-            url,
-            title,
-            author,
-            mut content,
-            summary,
-            published_at,
-            updated_at,
-            state: _,
-        } = self;
-
-        if let Some(page) = url.clone() {
-            let readable = Readability::new(
-                html,
-                Some(page.as_str()),
-                Some(dom_smoothie::Config {
-                    text_mode: dom_smoothie::TextMode::Markdown,
-                    ..Default::default()
-                }),
-            )?
-            .parse()?;
-            content = readable.text_content.to_string();
-        }
+impl<T> ToArticle for T
+where
+    T: HasId
+        + HasUrl
+        + HasTitle
+        + HasAuthor
+        + HasContent
+        + HasSummary
+        + HasPublishedTime
+        + HasUpdatedTime,
+{
+    fn to_article(&self) -> Result<Article, ArticleError> {
+        let id = self.get_id();
+        let url = self.get_url().map_err(|e| ArticleError::FailedToParseUrl {
+            context: UrlContext::EntryUrl,
+            reason: e,
+        })?;
+        let title = self.get_title();
+        let author = self.get_title();
+        let content = self.get_content();
+        let summary = self.get_summary();
+        let published_at = self
+            .get_published_time()
+            .map_err(|e| ArticleError::FailedToParseTime { reason: e })?;
+        let updated_at = self
+            .get_updated_time()
+            .map_err(|e| ArticleError::FailedToParseTime { reason: e })?;
         Ok(Article {
             id,
-            source_url,
-            source_title,
             url,
             title,
             author,
@@ -107,140 +111,111 @@ impl Article<SummaryOnly> {
             summary,
             published_at,
             updated_at,
-            state: PhantomData::<FullText>,
         })
     }
 }
 
-impl<T> Article<T>
-where
-    T: ArticleState,
-{
-    pub async fn upgrade(
-        articles: Vec<Article<SummaryOnly>>,
-        client: &surf::Client,
-        limit: usize,
-    ) -> Vec<anyhow::Result<Article<FullText>>> {
-        let mut url_map = HashMap::new();
-        let mut urls = Vec::new();
-        articles.iter().enumerate().for_each(|(idx, article)| {
-            if let Some(url) = article.borrow_url() {
-                url_map.insert(idx, url.clone());
-                urls.push(url.clone());
-            }
-        });
-        let mut pages = HttpContent::fetch(limit, urls, client).await;
-        articles
-            .into_iter()
-            .enumerate()
-            .filter_map(|(idx, article)| {
-                let _url = url_map.get(&idx)?;
-                pages
-                    .remove(0)
-                    .map(|content| article.with_full_text(content))
-                    .ok()
-            })
-            .collect()
+#[derive(Debug, Error)]
+pub enum ArticleError {
+    #[error("Failed to parse item: {item:?}")]
+    FailedToParseItem { item: FeedItem },
+    #[error("Failed to parse {context:?} URL: {reason:?}")]
+    FailedToParseUrl {
+        context: UrlContext,
+        reason: url::ParseError,
+    },
+    #[error("Failed to parse time: {reason}")]
+    FailedToParseTime { reason: chrono::ParseError },
+}
+
+#[derive(Debug)]
+pub enum FeedItem {
+    Rss(Box<rss::Item>),
+    Atom(Box<atom_syndication::Entry>),
+}
+
+impl From<rss::Item> for FeedItem {
+    fn from(value: rss::Item) -> Self {
+        FeedItem::Rss(Box::new(value))
+    }
+}
+impl From<atom_syndication::Entry> for FeedItem {
+    fn from(value: atom_syndication::Entry) -> Self {
+        FeedItem::Atom(Box::new(value))
     }
 }
 
-impl TryFrom<FeedParser> for Vec<Article<SummaryOnly>> {
-    type Error = anyhow::Error;
+#[derive(Debug)]
+pub enum UrlContext {
+    FeedUrl,
+    EntryUrl,
+}
 
-    fn try_from(value: FeedParser) -> Result<Self, Self::Error> {
-        // We haven't fetched the full text content yet
-        let state = PhantomData::<SummaryOnly>;
-        match value {
-            FeedParser::Rss(channel) => {
-                // Get the feed information
-                let source_title = Some(channel.title().to_string());
-                let source_url = channel.get_url();
+pub struct Articles {
+    /// The URL of the source feed this article came from.
+    source_url: Option<Url>,
 
-                // TODO: I'm ignoring errors for now just to get this working first. We don't want
-                // to fail the entire process just because of a few parsing errors on a couple of
-                // articles, but we also don't want to ignore the errors, so we should log them!
-                let mut results = Vec::with_capacity(channel.items().len());
-                for item in channel.items() {
-                    let id = item
-                        .guid()
-                        .map(|val| val.value().to_string())
-                        .unwrap_or(item.hash());
-                    let url = item.get_url();
-                    let title = item.title().unwrap_or_default().to_string();
-                    let author = item.author().unwrap_or_default().to_string();
-                    let content = item.content().unwrap_or_default().to_string();
-                    let content = Readability::new(
-                        content,
-                        None,
-                        Some(dom_smoothie::Config {
-                            text_mode: dom_smoothie::TextMode::Markdown,
-                            ..Default::default()
-                        }),
-                    )?
-                    .parse()?
-                    .text_content
-                    .to_string();
-                    let summary = item.description().map(|x| x.to_string());
-                    let published_at = item.pub_date().map(|val| val.to_string());
-                    let updated_at = None;
-                    let res = Article {
-                        state,
-                        source_url: source_url.clone(),
-                        source_title: source_title.clone(),
-                        id,
-                        url,
-                        title,
-                        author,
-                        content,
-                        summary,
-                        published_at,
-                        updated_at,
-                    };
+    /// The title of the source feed.
+    source_title: Option<String>,
 
-                    results.push(res);
-                }
-                Ok(results)
-            }
-            FeedParser::Atom(feed) => {
-                let source_title = Some(feed.title().to_string());
-                let source_url = feed.get_url();
+    articles: Vec<Article>,
+}
+impl Articles {
+    pub fn parse<T, I>(source: T) -> Result<Self, ArticleError>
+    where
+        T: HasTitle + HasUrl + HasItems<Item = I>,
+        I: ToArticle + Into<FeedItem>,
+    {
+        let items: Vec<I> = source.get_items();
+        let source_url = source
+            .get_url()
+            .map_err(|e| ArticleError::FailedToParseUrl {
+                context: UrlContext::FeedUrl,
+                reason: e,
+            })?;
 
-                let mut results = Vec::with_capacity(feed.entries().len());
+        let source_title = Some(source.get_title());
 
-                for entry in feed.entries() {
-                    let id = entry.id().to_string();
-                    // TODO: Error handling
-                    let content = entry.content().map_or(String::default(), |val| {
-                        val.value().map_or(String::default(), |val| val.to_string())
-                    });
-                    let url = entry.get_url();
-                    let title = entry.title().to_string();
-                    let author: String = entry
-                        .authors()
-                        .iter()
-                        .map(|author| author.name().to_string())
-                        .collect();
-
-                    let summary = entry.summary().map(|val| val.to_string());
-                    let published_at = entry.published().map(|val| val.to_string());
-                    let updated_at = Some(entry.updated().to_string());
-                    let res = Article {
-                        state,
-                        source_url: source_url.clone(),
-                        source_title: source_title.clone(),
-                        id,
-                        url,
-                        title,
-                        author,
-                        content,
-                        summary,
-                        published_at,
-                        updated_at,
-                    };
-                    results.push(res);
-                }
-                Ok(results)
-            }
+        let mut articles = Vec::with_capacity(items.len());
+        for item in items {
+            let parsed: Article = item.to_article()?;
+            articles.push(parsed);
         }
+
+        Ok(Self {
+            source_title,
+            source_url,
+            articles,
+        })
+    }
+}
+
+impl Serialize for Articles {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        struct Item<'a> {
+            #[serde(flatten)]
+            article: &'a Article,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            source_url: &'a Option<Url>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            source_title: &'a Option<String>,
+        }
+
+        let mut seq = serializer.serialize_seq(Some(self.articles.len()))?;
+
+        for art in &self.articles {
+            let item = Item {
+                article: art,
+                source_url: &self.source_url,
+                source_title: &self.source_title,
+            };
+            seq.serialize_element(&item)?;
+        }
+
+        seq.end()
     }
 }
