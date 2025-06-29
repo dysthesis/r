@@ -79,3 +79,18 @@ impl HasItems for atom_syndication::Feed {
         self.entries.clone()
     }
 }
+
+impl HasUrl for atom_syndication::Feed {
+    fn get_url(&self) -> Result<Option<Url>, url::ParseError> {
+        match self.base() {
+            Some(link) => Url::parse(link).map(|val| Some(val)),
+            None => Ok(None),
+        }
+    }
+}
+
+impl HasTitle for atom_syndication::Feed {
+    fn get_title(&self) -> String {
+        self.title.to_string()
+    }
+}

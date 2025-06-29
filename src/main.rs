@@ -1,6 +1,10 @@
+#![feature(box_into_inner)]
 use std::{env, fs};
 
-use crate::feed_parser::{FeedParser, FeedParserError};
+use crate::{
+    article::Articles,
+    feed_parser::{FeedParser, FeedParserError},
+};
 
 mod article;
 mod atom;
@@ -20,6 +24,10 @@ fn main() -> Result<(), String> {
         .as_str()
         .try_into()
         .map_err(|val: FeedParserError| val.to_string())?;
-    println!("{feed:?}");
+
+    let articles = feed.parse().map_err(|e| e.to_string())?;
+    let json = serde_json::to_string(&articles).map_err(|e| e.to_string())?;
+
+    println!("{}", json);
     Ok(())
 }

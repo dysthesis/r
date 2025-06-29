@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Serialize, ser::SerializeSeq};
 use thiserror::Error;
 use url::Url;
 
@@ -161,7 +161,7 @@ pub struct Articles {
     articles: Vec<Article>,
 }
 impl Articles {
-    fn try_from<T, I>(source: T) -> Result<Self, ArticleError>
+    pub fn parse<T, I>(source: T) -> Result<Self, ArticleError>
     where
         T: HasTitle + HasUrl + HasItems<Item = I>,
         I: ToArticle + Into<FeedItem>,
@@ -195,6 +195,27 @@ impl Serialize for Articles {
     where
         S: serde::Serializer,
     {
-        todo!()
+        #[derive(Serialize)]
+        struct Item<'a> {
+            #[serde(flatten)]
+            article: &'a Article,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            source_url: &'a Option<Url>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            source_title: &'a Option<String>,
+        }
+
+        let mut seq = serializer.serialize_seq(Some(self.articles.len()))?;
+
+        for art in &self.articles {
+            let item = Item {
+                article: art,
+                source_url: &self.source_url,
+                source_title: &self.source_title,
+            };
+            seq.serialize_element(&item)?;
+        }
+
+        seq.end()
     }
 }

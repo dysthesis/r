@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::article::{ArticleError, Articles};
+
 #[derive(Debug)]
 pub enum FeedParser {
     Rss(Box<rss::Channel>),
@@ -22,6 +24,15 @@ impl<'a> TryFrom<&'a str> for FeedParser {
             Ok(FeedParser::Atom(Box::new(feed)))
         } else {
             Err(FeedParserError::InvalidFeed { content: value })
+        }
+    }
+}
+
+impl FeedParser {
+    pub fn parse(self) -> Result<Articles, ArticleError> {
+        match self {
+            FeedParser::Rss(channel) => Articles::parse(Box::into_inner(channel)),
+            FeedParser::Atom(feed) => Articles::parse(Box::into_inner(feed)),
         }
     }
 }

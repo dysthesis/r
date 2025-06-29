@@ -59,6 +59,12 @@ impl HasUrl for rss::Item {
     }
 }
 
+impl HasUrl for rss::Channel {
+    fn get_url(&self) -> Result<Option<Url>, url::ParseError> {
+        Url::parse(self.link()).map(|val| Some(val))
+    }
+}
+
 impl HasId for rss::Item {
     fn get_id(&self) -> String {
         /// Helper to avoid repeating the finish/format boilerplate.
@@ -81,5 +87,11 @@ impl HasItems for rss::Channel {
     type Item = rss::Item;
     fn get_items(&self) -> Vec<Self::Item> {
         self.items.clone()
+    }
+}
+
+impl HasTitle for rss::Channel {
+    fn get_title(&self) -> String {
+        self.title.clone()
     }
 }
