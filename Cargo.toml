@@ -3,7 +3,7 @@ anyhow = {version = "1.0.98", default-features = false}
 atom_syndication = {version = "0.12.7", default-features = false}
 rss = {version = "2.0.12", default-features = false}
 serde = {version = "1.0.219", default-features = false, features = ["serde_derive"]}
-serde_json = {version = "1.0.140", default-features = false}
+serde_json = {version = "1.0.140", default-features = false, features = ["std"]}
 url = { version = "2.5.4", default-features = false, features = ["std", "serde"] }
 
 [package]
