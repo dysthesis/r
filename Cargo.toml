@@ -1,5 +1,6 @@
 [dependencies]
 atom_syndication = {version = "0.12.7", default-features = false}
+chrono = { version = "0.4.41", default-features = false, features = ["serde"] }
 rss = {version = "2.0.12", default-features = false}
 serde = {version = "1.0.219", default-features = false, features = ["serde_derive"]}
 serde_json = {version = "1.0.140", default-features = false, features = ["std"]}

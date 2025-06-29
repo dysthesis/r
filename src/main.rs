@@ -2,7 +2,11 @@ use std::{env, fs};
 
 use crate::feed_parser::{FeedParser, FeedParserError};
 
+mod article;
+mod atom;
 mod feed_parser;
+mod rss;
+
 fn main() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
     // We expect the only argument to be the path to the feed file.
